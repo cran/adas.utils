@@ -1,0 +1,307 @@
+---
+title: "ADAS Utils vignette"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ADAS Utils vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.dim=c(8, 4),
+  out.width="100%"
+)
+library(adas.utils)
+library(tidyverse)
+```
+
+
+# Factorial plans
+
+The package provides tools for dealing with factorial plan according to the *Design of Experiments* (DoE) protocols. The functions for dealing with DoE have names starting with `fp_`. As much as possible, we are aiming at a tidyverse-like syntax, so that the functions can be used in a pipe.
+
+We are following conventions and techniques illustrated in the book *Design and Analysis of Experiments* by Douglas C. Montgomery.
+
+## Full factorial plan
+
+You can create a full factorial plan with the `fp_design_matrix` function, passing the number of factors:
+```{r}
+(dm <- fp_design_matrix(2, rep=2) %>% 
+  mutate(Y=rnorm(n())))
+```
+
+In this case, the factors are the first `n` capital letters.
+
+If you want different factor names, use a right-side-only formula combining all the named factors with `*`:
+
+```{r}
+fp_design_matrix(~Speed*Weight)
+```
+
+**NOTE**, though, that using custom factor names is discouraged, and won't work as expected if you are using the functions for dealing with **fractional factorial plans**, especially for the analysis of alias structures among factors.
+
+The yield column `Y` must then be completed according to the randomized `RunOrder` column.
+
+It is possible to add custom scales to the factors, and also add names to the factors:
+
+```{r}
+fp_design_matrix(2) %>% 
+  fp_add_names(A="Temperature", B="Pressure") %>%
+  fp_add_scale(A=c(20, 25), B=c(75, 125), suffix=".scaled")
+```
+
+
+## Custom levels
+
+If you want a $k^n$ factorial plan with custom levels, pass the `levels` argument. In this case, though, the `.treat` column with Yates' treatment codes would be `NA`:
+
+```{r}
+fp_design_matrix(2, levels=-1:1)
+```
+
+
+## Augment a plan
+
+You can augment a plan by adding a central point, typically repeated:
+
+```{r}
+fp_design_matrix(3) %>%
+  fp_augment_center(rep=4)
+```
+
+Then if needed (because the analysis show low p-value for the quadratic term) you can add axial points to get a central composite design:
+
+```{r}
+fp_design_matrix(3) %>% 
+  fp_augment_center(rep=3) %>% 
+  fp_augment_axial(rep=2)
+```
+
+### Full example
+
+Let's see a full example using the `ccd_experiment_yield` dataset, which contains a list of the yield data for three sequential experiments in a central composite design.
+
+First, we design a $3\cdot 2^2$ factorial plan, with two factors and two levels each:
+
+
+```{r}
+fp <- fp_design_matrix(2, rep=3)
+```
+
+Ideally, we would then sort the table according to the `RunOrder` column, and complete the `Y` column with the yield data from the the real experiments. For the sake of documenting the package, we can directly add the yield data from the `base` field of the `ccd_experiment_yield` dataset (which holds values **in standard Yates' order**):
+
+
+```{r}
+fp$Y <- ccd_experiment_yield$base
+```
+
+Now we can fit a linear model to the data, and check the p-values of the ANOVA:
+
+```{r}
+fp %>% 
+  lm(Y ~ A*B, data=.) %>% 
+  anova()
+```
+All factors and their interactions are significant. But is the two-level model enough? Let's check for the quadratic terms, by augmenting the plan with a central point repeated 4 times. We also load the `center` field from the `ccd_experiment_yield` dataset:
+
+```{r}
+fpc <- fp %>% 
+  fp_augment_center(rep=4)
+
+fpc$Y[fpc$.treat == "center"] <- ccd_experiment_yield$center
+```
+
+Now we can fit a model with the quadratic term, using either $A$ or $B$: since we only have a central point, we cannot discriminate which factor is contributing to the curvature in the response surface. We get:
+
+```{r}
+fpc %>% 
+  lm(Y ~ A*B+I(A^2), data=.) %>% 
+  anova()
+```
+
+So the contribution of the quadratic term **is significant**. This means that we have to further augment the plan with axial points and investigate a *Central Composite Design* (CCD). **Note**: if the quadratic term contribution were not significant, we would have to remove the quadratic term from the model and accept the two-level model.
+
+So let's load the axial points from the `axial` field of the `ccd_experiment_yield` dataset, and fit a model with the quadratic terms and their interactions:
+
+```{r}
+fpccd <- fpc %>% 
+  fp_augment_axial(rep=2)
+
+fpccd$Y[fpccd$.treat == "axial"] <- ccd_experiment_yield$axial
+
+fpccd %>% 
+  lm(Y ~ A*B*I(A^2)*I(B^2), data=.) %>% 
+  anova()
+```
+
+So we can finally state that a proper model would be `Y ~ A*B+I(A^2)`:
+
+```{r}
+fpccd %>% 
+  lm(Y ~ A*B+I(A^2), data=.) %>% 
+  summary()
+```
+
+## Save to/load from a file
+
+Once the design matrix is prepared, you typically want to save it to a file and use it for collecting data form experiments. You can use the `write.csv` function, but it is recommended to use the `fp_write_csv` function, which will also save the design matrix properties as comments:
+
+```{r eval=FALSE}
+dm <-  fp_design_matrix(2) %>% 
+  fp_add_names(A="Temperature", B="Pressure") %>% 
+  fp_add_scale(A=c(2, 12), B=c(40, 60), suffix="_s") %>%
+  fp_write_csv("design_matrix.csv")
+```
+
+Note that the `fp_write_csv` function invisibly returns the same design matrix, so you can use it in a pipe chain. Also, the CVS files has the rows arranged in the same order as the `RunOrder` column (i.e. randomized). 
+
+Once the CSV file has been completed, you can load it back into R using the `fp_read_csv` function:
+
+```{r eval=FALSE}
+dm <- dm %>% 
+  fp_read_csv("design_matrix.csv")
+```
+
+Note that `fp_read_csv` returns the design matrix reordered according to Yates' standard order.
+
+
+
+## Fractional factorial plan
+
+It is possible to divide a design matrix into a fractional factorial plan using the `fp_fraction` function. The fraction uses a **defining relationship** (*dr*) as $I=ABCD$, which is mapped in R as a one side formula `~A*B*C*D`.
+
+Any fraction is added to the `factorial.plan` object in the `fraction` attribute.
+
+A full $2^n$ factorial plan can be reduced to a fractional factorial plan $2^{n-p}$ by applying the `fp_fraction` function $p$ times. For example, to get a $2^{5-2}$ plan with the defining relationships $I=ABCD$ and $I=BCDE$:
+
+```{r}
+fp_design_matrix(5) %>% 
+  fp_fraction(~A*B*C*D) %>% 
+  fp_fraction(~B*C*D*E)
+```
+
+Note that with the `remove` option you can control if you want to keep both fractions, and later on `filter(ABC==1)` them out.
+
+```{r}
+fp_design_matrix(3) %>% 
+  fp_fraction(~A*B*C, remove=FALSE)
+```
+
+Also, note that the `remove` option is sticky, so that when you can apply the `fp_fraction` function multiple times and the first time has the option set to `remove=FALSE`, then all the following `fp_fraction` calls will have the same option set to `FALSE`. Setting `remove=FALSE` to any of the following calls **can have unexpected behavior**.
+
+
+## Alias structure
+
+Any fraction of a factorial plan results in a set of *aliases* among effects. The package provides the following functions to deal with alias structures:
+
+- `fp_alias_matrix`: returns a matrix with the alias structure of the factors in the design matrix. The alias matrix has a plot method.
+- `fp_all_drs`: given a set of defining relationships, returns the dependent one.
+- `fp_merge_drs`: given a set of defining relationships, returns the merged one, i.e. the one having all the factors.
+- `fp_gen2alias`: given a *generator* (i.e. the right side of a DR) and an effect name as strings, calculates the resulting alias.
+
+For example:
+
+```{r}
+(am <- fp_alias_matrix(~A*B*C, ~B*C*D))
+```
+
+
+```{r}
+am %>% plot()
+```
+
+The design matrix can be converted to a tibble thanks to the proper `as_tibble.design.matrix` S3 method:
+
+```{r}
+am %>% as_tibble()
+```
+
+
+
+# Statistics
+
+The package also provides some useful functions for statistical analysis of data.
+
+## Plotting
+
+### Normal probability plot
+
+The normal probability plot is provided as an alternative to the quantile-quantile plot:
+
+```{r warning=FALSE}
+df <- tibble(
+  xn = rnorm(100, mean=20, sd=5),
+  xu = runif(100, min=0, max=40)
+)
+
+df %>% normplot(xn)
+df %>% normplot(xu)
+```
+
+### Pareto chart
+
+The Pareto chart is a bar chart that displays the relative importance of problems in a format that is very easy to interpret. The bars are sorted in descending order, and the cumulative percentage of the total is shown by the line.
+
+It can prove useful in the context of factorial plans, to identify the most important factors, or in sensitivity analysis, to identify the most important parameters.
+
+The package provides a *generic function*, `pareto_chart`, that can be used with a tibble (or a data frame), or with a linear model (an `lm` object). In the latter case, the function produces the Pareto chart of the model effects.
+
+For the general case, when you have a tibble with values and names:
+
+```{r}
+set.seed(1)
+tibble(
+  val=rnorm(10, sd=5),
+  cat=LETTERS[1:length(val)]
+  ) %>%
+  pareto_chart(labels=cat, values=val)
+```
+
+For the case of a linear model:
+
+```{r}
+filtration %>% 
+  lm(Y~A*B*C*D, data=.) %>%
+  pareto_chart()
+```
+
+### Daniel's plot
+
+In case of non-replicated factorial plans, the Daniel's plot can be used to identify the most important factors: a quantile-quantile plot of the factors effects shows the significant factors and interactions off the diagonal.
+
+```{r}
+daniel_plot_qq(lm(Y~A*B*C*D, data=filtration))
+```
+
+If you prefer, you can rather use a half-normal plot:
+
+```{r}
+filtration %>% 
+  lm(Y~A*B*C*D, data=.) %>%
+  daniel_plot_hn(nlab=6, repel=TRUE)
+
+```
+
+
+It shows that none of the effects containing the `B` factor are significant, so we can reduce the model to `Y~A*C*D`:
+
+```{r}
+filtration %>% 
+  lm(Y~A*C*D, data=.) %>%
+  anova()
+```
+
+Even better, the model can be further reduced to `Y~A*C+A*D`. Compare this conclusion with the last Pareto chart above.
+
+
+# Utilities
+
+This package also provides a function for easily loading data files made available on the accompanying course documentation on <https://paolobosetti.quarto.pub/data>:
+
+```{r}
+examples_url("battery.dat") %>%  read.table(header=TRUE)
+```
+
