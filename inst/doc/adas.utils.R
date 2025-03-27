@@ -134,5 +134,33 @@ filtration %>%
   anova()
 
 ## -----------------------------------------------------------------------------
+data <- examples_url("battery.dat") %>%
+  read_table() %>%
+  mutate(across(c(Temperature, Material), factor)) %>%
+  mutate(Material = LETTERS[Material])
+
+data.t <- data %>%
+  filter(Material == "A") %>%
+  aov(Response~Temperature, data=.) %>%
+  TukeyHSD()
+
+data.t
+
+data.t %>% plot()
+
+## -----------------------------------------------------------------------------
+data.t %>%
+  ggTukey()
+
+## -----------------------------------------------------------------------------
+data %>%
+  filter(Material == "A") %>%
+  ggTukey(Response~Temperature)
+
+## -----------------------------------------------------------------------------
+data %>% 
+  ggTukey(Response~Temperature, splt=~Material)
+
+## -----------------------------------------------------------------------------
 examples_url("battery.dat") %>%  read.table(header=TRUE)
 
