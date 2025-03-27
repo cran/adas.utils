@@ -296,9 +296,9 @@ ggTukey.TukeyHSD <- function(obj, which=1, ...){
     rownames_to_column("id") %>%
     rename(min=lwr, max=upr) %>%
     ggplot(aes(x=id)) +
+    geom_hline(yintercept=0, color="red") +
     geom_point(aes(y=diff)) +
     geom_errorbar(aes(ymin=min, ymax=max), width=0.2) +
-    geom_hline(yintercept=0, color="red") +
     labs(y="Difference", x=nm) +
     coord_flip()
 }
@@ -311,7 +311,7 @@ ggTukey.TukeyHSD <- function(obj, which=1, ...){
 #' @param which the index of the comparison. Used when the formula in the
 #'              undelying aov call has more than one term.
 #' @param splt a formula to split the data frame
-#' @param ... further parameters (currently unused)
+#' @param ... further parameters passed to `TukeyHSD`
 #'
 #' @returns a GGPlot2 object
 #' @export
@@ -332,13 +332,14 @@ ggTukey.data.frame <- function(obj, formula, which=1, splt=NULL, ...) {
     var <- (formula %>% terms() %>% attr("term.labels"))[[1]]
     split(obj, splt) %>%
       map(\(d) {
-        TukeyHSD(aov(formula, data = d))[[which]] %>%
+        TukeyHSD(aov(formula, data = d), ...)[[which]] %>%
           as_tibble(rownames=var) %>%
           select(-`p adj`) %>%
           mutate("{grp}":=unique(pull(d, !!grp)))
       }) %>%
       bind_rows() %>%
       ggplot(aes(x=!!sym(var), y=diff, color=!!sym(grp))) +
+      geom_hline(yintercept=0, color="red") +
       geom_point(position = position_dodge(0.5)) +
       geom_errorbar(aes(ymin=lwr, ymax=upr), width=0.1, position = position_dodge(0.5)) +
       labs(y="Difference", x=var) +
