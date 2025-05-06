@@ -16,7 +16,7 @@ undelying aov call has more than one term.}
 
 \item{splt}{a formula to split the data frame}
 
-\item{...}{further parameters passed to \code{TukeyHSD}}
+\item{...}{further parameters passed to \code{TukeyHSD} (e.g. \code{conf.level})}
 }
 \value{
 a GGPlot2 object
@@ -26,8 +26,6 @@ ggTukey for data.frame
 }
 \examples{
 library(tidyverse)
-examples_url("battery.dat") \%>\%
-  read_table() \%>\%
-  mutate(across(c(Temperature, Material), factor)) \%>\%
-  ggTukey(Response~Material, splt=~Temperature)
+battery \%>\%
+  ggTukey(Response~Material, splt=~Temperature, conf.level=0.99)
 }

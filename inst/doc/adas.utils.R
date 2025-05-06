@@ -134,9 +134,7 @@ filtration %>%
   anova()
 
 ## -----------------------------------------------------------------------------
-data <- examples_url("battery.dat") %>%
-  read_table() %>%
-  mutate(across(c(Temperature, Material), factor)) %>%
+data <- battery %>%
   mutate(Material = LETTERS[Material])
 
 data.t <- data %>%

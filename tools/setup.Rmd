@@ -18,6 +18,11 @@ use_import_from(
 )
 
 use_import_from(
+  "scales", 
+  c("rescale")
+)
+
+use_import_from(
   "readr", c("read_csv", "read_csv2", "write_csv", "write_csv2")
 )
 
@@ -41,8 +46,10 @@ use_import_from(
 
 use_import_from(
   "stats", 
-  c("as.formula", "coef", "ecdf", "effects", "na.omit",
-               "pnorm", "sd", "setNames", "terms", "aov", "TukeyHSD")
+  c(
+    "as.formula", "coef", "ecdf", "effects", "na.omit",
+    "pnorm", "sd", "setNames", "terms", "aov", "TukeyHSD", 
+    "median", "reformulate")
 )
 
 use_import_from(
@@ -295,6 +302,23 @@ dm <- fp_design_matrix(2) %>%
 dm %>%
   fp_read_csv("design_matrix.csv")
 ```
+
+
+## For Tukey
+
+```{r}
+battery <- examples_url("battery.dat") %>% read.table(header=TRUE) %>% 
+  mutate(across(Temperature:Material, factor)) %>% glimpse()
+
+cotton <- examples_url("cotton.dat") %>% read.table(header=TRUE) %>% 
+  mutate(Cotton = factor(Cotton)) %>% 
+  glimpse()
+
+
+usethis::use_data(battery, overwrite=TRUE)
+usethis::use_data(cotton, overwrite=TRUE)
+```
+
 
 
 # Centered design
