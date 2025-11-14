@@ -24,6 +24,37 @@ fp_design_matrix(2) %>%
 fp_design_matrix(2, levels=-1:1)
 
 ## -----------------------------------------------------------------------------
+fp <- fp_design_matrix(2, rep=3) %>% 
+  fp_add_names(A="Temperature (°C)", B="Pressure (bar)") %>% 
+  fp_add_scale(A=c(20,30), B=c(2, 3))
+fp$Y <- ccd_experiment_yield$base
+fp.lm <- lm(Y~A*B, data=fp)
+
+fp %>% 
+  mutate(
+    pred = predict(fp.lm),
+    B=factor(B)
+  ) %>% 
+  ggplot(aes(x=A, y=pred, color=B)) + 
+  geom_line() +
+  scale_x_continuous(sec.axis = fp_scaled_axis(fp, "A"))+
+  scale_color_discrete(labels = fp_scale(fp, "B")) +
+  labs(color=fp_name(fp, "B"), y="Yield")
+
+## -----------------------------------------------------------------------------
+expand.grid(
+  A = seq(-1, 1, length.out=100),
+  B = seq(-1, 1, length.out=100)
+) %>% {
+  mutate(., Y=predict(fp.lm, newdata=.))
+} %>% 
+  ggplot(aes(x=A, y=B, z=Y)) + 
+  geom_contour_filled() + 
+  scale_x_continuous(sec.axis = fp_scaled_axis(fp, "A")) +
+  scale_y_continuous(sec.axis = fp_scaled_axis(fp, "B")) + 
+  labs(fill="Yield")
+
+## -----------------------------------------------------------------------------
 fp_design_matrix(3) %>%
   fp_augment_center(rep=4)
 
@@ -161,4 +192,21 @@ data %>%
 
 ## -----------------------------------------------------------------------------
 examples_url("battery.dat") %>%  read.table(header=TRUE)
+
+## -----------------------------------------------------------------------------
+p <- fp_design_matrix(2, rep=3) %>% 
+  fp_add_names(A="Temperature (°C)", B="Pressure (bar)") %>% 
+  fp_add_scale(A=c(20,30), B=c(2, 3))
+fp$Y <- ccd_experiment_yield$base
+fp.lm <- lm(Y~A*B, data=fp)
+
+fp %>% 
+  add_predictions(fp.lm, interval="confidence") %>% 
+  mutate(B=factor(B)) %>% 
+  ggplot(aes(x=A, y=fit, color=B)) + 
+  geom_ribbon(aes(ymin=lwr, ymax=upr), alpha=1/3) +
+  geom_line() +
+  scale_x_continuous(sec.axis = fp_scaled_axis(fp, "A"))+
+  scale_color_discrete(labels = fp_scale(fp, "B")) +
+  labs(color=fp_name(fp, "B"), y="Yield")
 
