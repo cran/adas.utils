@@ -138,12 +138,41 @@ df %>% normplot(xn)
 df %>% normplot(xu)
 
 ## -----------------------------------------------------------------------------
+tibble(
+  s = rnorm(50),
+  lab = paste0("obs_", seq_along(s)),
+  group=1
+) %>% 
+  ggplot(aes(sample=s, labels=lab)) + 
+  geom_qqhn() + 
+  geom_qqhn_line() +
+  geom_qqhn_band(alpha=0.15)
+
+## -----------------------------------------------------------------------------
+set.seed(1)
+df <- data.frame(
+  group = rep(c("control", "treated"), each = 120),
+  value = c(rnorm(120, mean = 0, sd = 1), rnorm(120, mean = 0.4, sd = 1.3))
+)
+df$obs_id <- paste0("obs_", seq_len(nrow(df)))
+
+ggplot(df, aes(sample = value, labels = obs_id, colour = group, group = group)) +
+  geom_qqhn_band(conf.level = 0.95, linewidth = 0, alpha = 0.15) +
+  geom_qqhn(label_n = 3) +
+  geom_qqhn_line() + 
+  geom_qqhn_band(alpha = 0.15)
+
+## -----------------------------------------------------------------------------
 set.seed(1)
 tibble(
   val=rnorm(10, sd=5),
   cat=LETTERS[1:length(val)]
   ) %>%
-  pareto_chart(labels=cat, values=val)
+  ggplot(aes(x=cat, y=val)) +
+  geom_pareto_bars() + 
+  geom_pareto_line() +
+  geom_pareto_point() +
+  scale_y_pareto()
 
 ## -----------------------------------------------------------------------------
 filtration %>% 
@@ -154,10 +183,19 @@ filtration %>%
 daniel_plot_qq(lm(Y~A*B*C*D, data=filtration))
 
 ## -----------------------------------------------------------------------------
+filtration %>%
+  lm(Y~A*B*C*D, data=.) %>%
+  daniel_plot_hn(label_n = 6)
+
+
+## -----------------------------------------------------------------------------
 filtration %>% 
   lm(Y~A*B*C*D, data=.) %>%
-  daniel_plot_hn(nlab=6, repel=TRUE)
-
+  effects() %>% tail(-1) %>% tibble(factors = names(.), values=.) %>% 
+  ggplot(aes(sample=values, labels=factors)) + 
+  geom_qqhn(label_n = 6) + 
+  geom_qqhn_line(line.p = c(0, 0.4), color="red") + 
+  geom_qqhn_band(line.p = c(0, 0.4), alpha=0.15)
 
 ## -----------------------------------------------------------------------------
 filtration %>% 
