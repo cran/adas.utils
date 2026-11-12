@@ -321,47 +321,76 @@ ggTukey.TukeyHSD <- function(obj, which=1, ...){
 
 #' ggTukey for data.frame
 #'
-#' @param obj a data frame
+#' Runs `aov()` + `TukeyHSD()` on the data frame and plots the result. Like
+#' [dplyr::summarise()], the data can be split into multiple series either by
+#' passing a grouped tibble (see [dplyr::group_by()]) or with the `.by`
+#' argument. The first grouping variable is mapped to colour; any further
+#' grouping variables are mapped to facets via [ggplot2::facet_wrap()].
+#'
+#' @param obj a data frame, possibly grouped
 #' @param formula a formula to be used in the aov call
 #' @param which the index of the comparison. Used when the formula in the
 #'              undelying aov call has more than one term.
-#' @param splt a formula to split the data frame
+#' @param .by <[`tidy-select`][dplyr::dplyr_tidy_select]> optional selection of
+#'   columns to group by for just this call, as an alternative to
+#'   [dplyr::group_by()]
+#' @param splt Deprecated: a one-sided formula to split the data frame; use
+#'   `.by` or [dplyr::group_by()] instead
 #' @param ... further parameters passed to `TukeyHSD` (e.g. `conf.level`)
 #'
 #' @returns a GGPlot2 object
 #' @export
+#' @seealso [geom_tukey()]
 #'
 #' @examples
 #' library(tidyverse)
 #' battery %>%
-#'   ggTukey(Response~Material, splt=~Temperature, conf.level=0.99)
-ggTukey.data.frame <- function(obj, formula, which=1, splt=NULL, ...) {
-  id <- lwr <- upr <- diff <- `p adj` <- NULL
-  if (is.null(splt)) {
-    TukeyHSD(aov(formula, data=obj), ...) %>%
-      ggTukey(which)
-  } else {
-    grp <- (splt %>% terms() %>% attr("term.labels"))[[1]]
-    var <- (formula %>% terms() %>% attr("term.labels"))[[1]]
-    cl <- ifelse("conf.level" %in% ...names(), list(...)$conf.level, 0.95)
-    split(obj, splt) %>%
-      map(\(d) {
-        TukeyHSD(aov(formula, data = d), ...)[[which]] %>%
-          as_tibble(rownames=var) %>%
-          select(-`p adj`) %>%
-          mutate("{grp}":=unique(pull(d, !!grp)))
-      }) %>%
-      bind_rows() %>%
-      ggplot(aes(x=!!sym(var), y=diff, color=!!sym(grp))) +
-      geom_hline(yintercept=0, color="red") +
-      geom_point(position = position_dodge(0.5)) +
-      geom_errorbar(aes(ymin=lwr, ymax=upr), width=0.1,
-                    position = position_dodge(0.5)) +
-      labs(
-        y="Difference",
-        x=var,
-        subtitle=paste0(cl * 100, "% family-wise confidence level")
-      ) +
-      coord_flip()
+#'   ggTukey(Response~Material, .by=Temperature, conf.level=0.99)
+#'
+#' battery %>%
+#'   group_by(Temperature) %>%
+#'   ggTukey(Response~Material)
+ggTukey.data.frame <- function(obj, formula, which=1, .by=NULL, splt=NULL, ...) {
+  diff <- lwr <- upr <- id <- NULL
+  if (!is.null(splt)) {
+    warning("`splt` is deprecated; use `.by` or `group_by()` instead.", call. = FALSE)
+    obj <- dplyr::group_by(obj, dplyr::across(dplyr::all_of(all.vars(splt))))
   }
+  if (!rlang::quo_is_null(rlang::enquo(.by))) {
+    if (dplyr::is_grouped_df(obj))
+      stop("Can't supply `.by` when `obj` is a grouped data frame.", call. = FALSE)
+    obj <- dplyr::group_by(obj, dplyr::pick({{ .by }}))
+  }
+  grps <- dplyr::group_vars(obj)
+  if (length(grps) == 0) {
+    return(TukeyHSD(aov(formula, data=obj), ...) %>% ggTukey(which))
+  }
+
+  cl <- ifelse("conf.level" %in% ...names(), list(...)$conf.level, 0.95)
+  # the term name is the same for every group
+  var <- NULL
+  df <- dplyr::group_modify(obj, \(d, k) {
+    tk <- TukeyHSD(aov(formula, data = d), ...)
+    var <<- names(tk)[[which]]
+    tibble::as_tibble(tk[[which]], rownames = "id")
+  }) %>%
+    ungroup() %>%
+    mutate(across(dplyr::all_of(grps), as.factor))
+
+  p <- ggplot(df, aes(x=id, y=diff, color=!!sym(grps[1]))) +
+    geom_hline(yintercept=0, color="red") +
+    geom_point(position = position_dodge(0.5)) +
+    geom_errorbar(aes(ymin=lwr, ymax=upr), width=0.1,
+                  position = position_dodge(0.5)) +
+    labs(
+      y="Difference",
+      x=var,
+      subtitle=paste0(cl * 100, "% family-wise confidence level")
+    ) +
+    coord_flip()
+  if (length(grps) > 1) {
+    p <- p + ggplot2::facet_wrap(ggplot2::vars(!!!rlang::syms(grps[-1])),
+                                 labeller = ggplot2::label_both)
+  }
+  p
 }

@@ -4,17 +4,22 @@
 \alias{ggTukey.data.frame}
 \title{ggTukey for data.frame}
 \usage{
-\method{ggTukey}{data.frame}(obj, formula, which = 1, splt = NULL, ...)
+\method{ggTukey}{data.frame}(obj, formula, which = 1, .by = NULL, splt = NULL, ...)
 }
 \arguments{
-\item{obj}{a data frame}
+\item{obj}{a data frame, possibly grouped}
 
 \item{formula}{a formula to be used in the aov call}
 
 \item{which}{the index of the comparison. Used when the formula in the
 undelying aov call has more than one term.}
 
-\item{splt}{a formula to split the data frame}
+\item{.by}{<\code{\link[dplyr:dplyr_tidy_select]{tidy-select}}> optional selection of
+columns to group by for just this call, as an alternative to
+\code{\link[dplyr:group_by]{dplyr::group_by()}}}
+
+\item{splt}{Deprecated: a one-sided formula to split the data frame; use
+\code{.by} or \code{\link[dplyr:group_by]{dplyr::group_by()}} instead}
 
 \item{...}{further parameters passed to \code{TukeyHSD} (e.g. \code{conf.level})}
 }
@@ -22,10 +27,21 @@ undelying aov call has more than one term.}
 a GGPlot2 object
 }
 \description{
-ggTukey for data.frame
+Runs \code{aov()} + \code{TukeyHSD()} on the data frame and plots the result. Like
+\code{\link[dplyr:summarise]{dplyr::summarise()}}, the data can be split into multiple series either by
+passing a grouped tibble (see \code{\link[dplyr:group_by]{dplyr::group_by()}}) or with the \code{.by}
+argument. The first grouping variable is mapped to colour; any further
+grouping variables are mapped to facets via \code{\link[ggplot2:facet_wrap]{ggplot2::facet_wrap()}}.
 }
 \examples{
 library(tidyverse)
 battery \%>\%
-  ggTukey(Response~Material, splt=~Temperature, conf.level=0.99)
+  ggTukey(Response~Material, .by=Temperature, conf.level=0.99)
+
+battery \%>\%
+  group_by(Temperature) \%>\%
+  ggTukey(Response~Material)
+}
+\seealso{
+\code{\link[=geom_tukey]{geom_tukey()}}
 }

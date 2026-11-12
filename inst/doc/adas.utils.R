@@ -226,7 +226,14 @@ data %>%
 
 ## -----------------------------------------------------------------------------
 data %>% 
-  ggTukey(Response~Temperature, splt=~Material)
+  group_by(Material) %>% 
+  ggTukey(Response~Temperature)
+
+## -----------------------------------------------------------------------------
+data %>% 
+  ggplot(aes(response=Response, factor=Temperature, color=Material)) +
+  geom_tukey() +
+  labs(x="Difference", y="Temperature")
 
 ## -----------------------------------------------------------------------------
 examples_url("battery.dat") %>%  read.table(header=TRUE)

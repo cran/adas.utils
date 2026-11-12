@@ -420,11 +420,21 @@ data %>%
   ggTukey(Response~Temperature)
 ```
 
-Or a formula and a second split factor formula:
+Like `dplyr::summarise()`, a grouped data frame (or the `.by` argument) splits the plot into multiple series, one per group. The first grouping variable is mapped to colour, any further one to facets:
 
 ```{r}
 data %>% 
-  ggTukey(Response~Temperature, splt=~Material)
+  group_by(Material) %>% 
+  ggTukey(Response~Temperature)
+```
+
+The same plot can be built as a regular ggplot2 layer with `geom_tukey()`, which takes the response and the factor via the `response` and `factor` aesthetics:
+
+```{r}
+data %>% 
+  ggplot(aes(response=Response, factor=Temperature, color=Material)) +
+  geom_tukey() +
+  labs(x="Difference", y="Temperature")
 ```
 
 
@@ -432,7 +442,7 @@ data %>%
 
 ## Data loading
 
-This package also provides a function for easily loading data files made available on the accompanying course documentation on <https://paolobosetti.quarto.pub/data>:
+This package also provides a function for easily loading data files made available on the accompanying course documentation on <https://pbosetti.github.io/teaching_site/data.html>:
 
 ```{r}
 examples_url("battery.dat") %>%  read.table(header=TRUE)

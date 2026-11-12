@@ -15,7 +15,11 @@ version](https://pbosetti.r-universe.dev/adas.utils/badges/version)](https://pbo
 The goal of adas.utils is to provide some utility functions to be used
 in the course *Analysis of Data and Statistics* at the University of
 Trento, Italy. Course contents are on
-<https://paolobosetti.quarto.pub/ADAS/>.
+<https://pbosetti.github.io/>.
+
+## Cheatsheet
+
+<a href="https://github.com/pbosetti/adas.utils/blob/main/cheatsheet/adas.utils-cheatsheet.pdf"><img src="man/figures/README-cheatsheet.png" width="400" alt="adas.utils cheatsheet"/></a>
 
 ## Installation
 
@@ -31,7 +35,7 @@ devtools::install_github("pbosetti/adas.utils", build_vignettes = TRUE)
 
 ### Loading data sets
 
-On <https://paolobosetti.quarto.pub/data.html> there are a list of
+On <https://pbosetti.github.io/teaching_site/data.html> there are a list of
 example datasets to be used during the course. You can load them with
 the `examples_url` function:
 

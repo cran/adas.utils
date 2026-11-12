@@ -1,3 +1,9 @@
+# adas.utils 1.5.0
+
+* `ggTukey()` on data frames now supports grouped tibbles and a `.by` argument, like `dplyr::summarise()`; further grouping variables become facets. The `splt` argument is deprecated.
+* Added `geom_tukey()` and `stat_tukey()` for Tukey's HSD plots as ggplot2 layers.
+* Added a cheatsheet.
+
 # adas.utils 1.4.1
 
 Fixed URL in `examples_url` function, after quarto.pub shutdown announcement.

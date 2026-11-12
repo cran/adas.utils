@@ -3,6 +3,7 @@
 S3method(as_tibble,alias.matrix)
 S3method(ggTukey,TukeyHSD)
 S3method(ggTukey,data.frame)
+S3method(ggplot2::ggplot_add,adas_tukey)
 S3method(ggplot_add,qqhn_bundle)
 S3method(pareto_chart,data.frame)
 S3method(pareto_chart,lm)
@@ -49,6 +50,7 @@ export(geom_pareto_point)
 export(geom_qqhn)
 export(geom_qqhn_band)
 export(geom_qqhn_line)
+export(geom_tukey)
 export(ggTukey)
 export(normplot)
 export(pareto_chart)
@@ -60,6 +62,7 @@ export(stat_pareto_line)
 export(stat_qqhn)
 export(stat_qqhn_band)
 export(stat_qqhn_line)
+export(stat_tukey)
 importFrom(dplyr,
   across,
   add_row,

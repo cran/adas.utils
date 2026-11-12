@@ -887,3 +887,143 @@ ggplot_add.qqhn_bundle <- function(object, plot, object_name, ...) {
 
   plot
 }
+
+#' Tukey's HSD intervals
+#'
+#' `stat_tukey()` fits a one-way `aov(response ~ factor)` per group and
+#' computes Tukey's HSD pairwise differences with [stats::TukeyHSD()].
+#' `geom_tukey()` draws them as horizontal error bars with points, plus a red
+#' reference line at zero, and labels the y axis with the comparisons. Groups
+#' (e.g. a `colour` mapping) are dodged, and facets work as usual.
+#'
+#' The input variables are given through the non-positional `response` and
+#' `factor` aesthetics, because ggplot2 maps a discrete `x` to integers before
+#' the stat runs. For the same reason the comparisons are placed on a
+#' continuous y axis: `y` is the comparison index, `x` = `diff`,
+#' `xmin`/`xmax` = `lwr`/`upr`. The stat also returns `comparison` (the label)
+#' and `p.adj`. `geom_tukey()` adds the matching y axis labels; with
+#' `stat_tukey()` alone the y axis shows the indices.
+#'
+#' @inheritParams ggplot2::stat_identity
+#' @param geom The geometric object to use display the data.
+#' @param conf.level Family-wise confidence level, passed to [stats::TukeyHSD()].
+#' @param dodge Dodging width between groups.
+#' @returns A ggplot2 layer (`stat_tukey()`) or a set of layers (`geom_tukey()`).
+#' @seealso [ggTukey()]
+#' @export
+#' @examples
+#' library(ggplot2)
+#' ggplot(battery, aes(response = Response, factor = Material, colour = Temperature)) +
+#'   geom_tukey(conf.level = 0.99) +
+#'   labs(x = "Difference", y = "Material")
+geom_tukey <- function(
+  mapping = NULL,
+  data = NULL,
+  ...,
+  conf.level = 0.95,
+  dodge = 0.5,
+  na.rm = FALSE,
+  show.legend = NA,
+  inherit.aes = TRUE
+) {
+  pos <- ggplot2::position_dodge(width = dodge, orientation = "y")
+  structure(
+    list(
+      layers = list(
+        ggplot2::geom_vline(xintercept = 0, colour = "red"),
+        stat_tukey(mapping, data, geom = "errorbar", position = pos,
+                   orientation = "y", width = 0.2, ..., conf.level = conf.level,
+                   na.rm = na.rm, show.legend = show.legend, inherit.aes = inherit.aes),
+        stat_tukey(mapping, data, geom = "point", position = pos,
+                   ..., conf.level = conf.level,
+                   na.rm = na.rm, show.legend = show.legend, inherit.aes = inherit.aes)
+      ),
+      mapping = mapping,
+      data = data,
+      inherit.aes = inherit.aes
+    ),
+    class = "adas_tukey"
+  )
+}
+
+#' @exportS3Method ggplot2::ggplot_add
+ggplot_add.adas_tukey <- function(object, plot, ...) {
+  fct <- object$mapping$factor
+  if (is.null(fct) && object$inherit.aes) fct <- plot$mapping$factor
+  data <- if (is.data.frame(object$data)) object$data else plot$data
+  plot <- plot + object$layers
+  if (is.null(fct) || !is.data.frame(data)) return(plot)
+  labs <- tukey_comparisons(levels(factor(rlang::eval_tidy(fct, data))))
+  plot + ggplot2::scale_y_continuous(
+    breaks = seq_along(labs), labels = labs, minor_breaks = NULL
+  )
+}
+
+# All pairwise labels in TukeyHSD() order ("B-A", "C-A", "C-B", ...)
+tukey_comparisons <- function(lv) {
+  m <- outer(lv, lv, paste, sep = "-")
+  m[lower.tri(m)]
+}
+
+#' @rdname geom_tukey
+#' @export
+stat_tukey <- function(
+  mapping = NULL,
+  data = NULL,
+  geom = "pointrange",
+  position = "identity",
+  ...,
+  conf.level = 0.95,
+  na.rm = FALSE,
+  show.legend = NA,
+  inherit.aes = TRUE
+) {
+  ggplot2::layer(
+    data = data,
+    mapping = mapping,
+    stat = StatTukey,
+    geom = geom,
+    position = position,
+    show.legend = show.legend,
+    inherit.aes = inherit.aes,
+    params = list(conf.level = conf.level, na.rm = na.rm, ...)
+  )
+}
+
+StatTukey <- ggplot2::ggproto(
+  "StatTukey",
+  ggplot2::Stat,
+  required_aes = c("response", "factor"),
+  dropped_aes = c("response", "factor"),
+  default_aes = ggplot2::aes(
+    x = ggplot2::after_stat(diff),
+    y = ggplot2::after_stat(index),
+    xmin = ggplot2::after_stat(lwr),
+    xmax = ggplot2::after_stat(upr)
+  ),
+  # ggplot groups by every discrete aesthetic, `factor` included; regroup
+  # without it so each group holds all levels to compare. Levels are fixed on
+  # the whole layer so comparison indices agree across groups and panels.
+  # shortcut: an explicit `group` mapping is overridden, honour it if ever needed
+  setup_data = function(data, params) {
+    data$factor <- factor(data$factor)
+    disc <- vapply(data, \(x) is.factor(x) || is.character(x) || is.logical(x), logical(1))
+    disc <- setdiff(names(data)[disc], c("factor", "PANEL", "label"))
+    data$group <- if (length(disc) == 0) 1L else
+      as.integer(interaction(data[disc], drop = TRUE, lex.order = TRUE))
+    data
+  },
+  compute_group = function(data, scales, conf.level = 0.95) {
+    fct <- droplevels(data$factor)
+    tk <- stats::TukeyHSD(stats::aov(data$response ~ fct), conf.level = conf.level)[[1]]
+    data.frame(
+      comparison = rownames(tk),
+      index = match(rownames(tk), tukey_comparisons(levels(data$factor))),
+      diff = tk[, "diff"],
+      lwr = tk[, "lwr"],
+      upr = tk[, "upr"],
+      p.adj = tk[, "p adj"],
+      row.names = NULL
+    )
+  }
+)
